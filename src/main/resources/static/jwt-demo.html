@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo JWT Authentication</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .api-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .response-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .token-display {
+            background-color: #e7f3ff;
+            border: 1px solid #bee5eb;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-6">
+                <h2 class="text-center mb-4">Demo JWT Authentication API</h2>
+                
+                <!-- Đăng ký -->
+                <div class="api-section">
+                    <h4>1. Đăng ký tài khoản mới</h4>
+                    <form id="registerForm">
+                        <div class="mb-3">
+                            <label class="form-label">Tên đăng nhập:</label>
+                            <input type="text" class="form-control" id="regUsername" value="newuser" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email:</label>
+                            <input type="email" class="form-control" id="regEmail" value="newuser@example.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mật khẩu:</label>
+                            <input type="password" class="form-control" id="regPassword" value="123456" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Đăng ký</button>
+                    </form>
+                    <div id="registerResponse" class="response-box" style="display: none;"></div>
+                </div>
+
+                <!-- Đăng nhập -->
+                <div class="api-section">
+                    <h4>2. Đăng nhập</h4>
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label class="form-label">Tên đăng nhập:</label>
+                            <input type="text" class="form-control" id="loginUsername" value="admin" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mật khẩu:</label>
+                            <input type="password" class="form-control" id="loginPassword" value="admin123" required>
+                        </div>
+                        <button type="submit" class="btn btn-success">Đăng nhập</button>
+                    </form>
+                    <div id="loginResponse" class="response-box" style="display: none;"></div>
+                    <div id="tokenDisplay" class="token-display" style="display: none;">
+                        <strong>JWT Token:</strong><br>
+                        <span id="jwtToken"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <!-- Token hiện tại -->
+                <div class="api-section">
+                    <h4>3. Token hiện tại</h4>
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="currentToken" placeholder="JWT Token sẽ được điền tự động sau khi đăng nhập">
+                    </div>
+                    <button type="button" class="btn btn-warning" onclick="clearToken()">Xóa Token</button>
+                </div>
+
+                <!-- API được bảo vệ -->
+                <div class="api-section">
+                    <h4>4. Test API được bảo vệ</h4>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-info" onclick="testApi('/api/users/me', 'Thông tin người dùng hiện tại')">
+                            GET /api/users/me (USER+)
+                        </button>
+                        <button class="btn btn-info" onclick="testApi('/api/users', 'Danh sách người dùng')">
+                            GET /api/users (MANAGER+)
+                        </button>
+                        <button class="btn btn-info" onclick="testApi('/api/manager/reports', 'Báo cáo quản lý')">
+                            GET /api/manager/reports (MANAGER+)
+                        </button>
+                        <button class="btn btn-info" onclick="testApi('/api/admin/dashboard', 'Bảng điều khiển Admin')">
+                            GET /api/admin/dashboard (ADMIN)
+                        </button>
+                    </div>
+                    <div id="apiResponse" class="response-box" style="display: none;"></div>
+                </div>
+
+                <!-- Hướng dẫn sử dụng -->
+                <div class="api-section">
+                    <h5>Hướng dẫn sử dụng:</h5>
+                    <ol>
+                        <li>Đăng ký tài khoản mới hoặc sử dụng tài khoản có sẵn</li>
+                        <li>Đăng nhập để nhận JWT token</li>
+                        <li>Token sẽ được lưu tự động và hiển thị</li>
+                        <li>Test các API endpoint với token đã nhận</li>
+                        <li>Quan sát phân quyền theo role:</li>
+                        <ul>
+                            <li><strong>USER:</strong> Chỉ truy cập được /api/users/me</li>
+                            <li><strong>MANAGER:</strong> Truy cập được USER + /api/users + /api/manager/reports</li>
+                            <li><strong>ADMIN:</strong> Truy cập được tất cả</li>
+                        </ul>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentJwtToken = '';
+
+        // Đăng ký
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                username: document.getElementById('regUsername').value,
+                email: document.getElementById('regEmail').value,
+                password: document.getElementById('regPassword').value
+            };
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                showResponse('registerResponse', result, response.status);
+            } catch (error) {
+                showResponse('registerResponse', { error: error.message }, 500);
+            }
+        });
+
+        // Đăng nhập
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                username: document.getElementById('loginUsername').value,
+                password: document.getElementById('loginPassword').value
+            };
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                showResponse('loginResponse', result, response.status);
+                
+                if (result.token) {
+                    currentJwtToken = result.token;
+                    document.getElementById('jwtToken').textContent = result.token;
+                    document.getElementById('currentToken').value = result.token;
+                    document.getElementById('tokenDisplay').style.display = 'block';
+                }
+            } catch (error) {
+                showResponse('loginResponse', { error: error.message }, 500);
+            }
+        });
+
+        // Test API
+        async function testApi(endpoint, description) {
+            if (!currentJwtToken) {
+                showResponse('apiResponse', { error: 'Vui lòng đăng nhập để nhận JWT token trước' }, 401);
+                return;
+            }
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentJwtToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                showResponse('apiResponse', { endpoint, description, ...result }, response.status);
+            } catch (error) {
+                showResponse('apiResponse', { endpoint, description, error: error.message }, 500);
+            }
+        }
+
+        // Xóa token
+        function clearToken() {
+            currentJwtToken = '';
+            document.getElementById('currentToken').value = '';
+            document.getElementById('tokenDisplay').style.display = 'none';
+            document.getElementById('jwtToken').textContent = '';
+        }
+
+        // Hiển thị response
+        function showResponse(elementId, data, status) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            
+            let statusClass = 'text-success';
+            if (status >= 400) statusClass = 'text-danger';
+            else if (status >= 300) statusClass = 'text-warning';
+            
+            element.innerHTML = `
+                <div class="${statusClass}"><strong>Status: ${status}</strong></div>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        // Auto-fill current token on page load
+        document.getElementById('currentToken').addEventListener('input', (e) => {
+            currentJwtToken = e.target.value;
+        });
+    </script>
+</body>
+</html>
